@@ -45,34 +45,36 @@ elif st.session_state.interview_started:
             
             # Prepare context based on whether user wants generated questions
             if question.lower() == "generate questions":
-                prompt = f"""As an expert interview coach, generate 5 important interview questions specific to the {st.session_state.job_position} role. 
-                For each question, explain why it's important for this role. Format the response clearly with numbers and explanations."""
+                prompt = f"""As an expert interview coach, generate 5 important interview questions specific to the {st.session_state.job_position} role. Keep the response concise."""
             else:
-                prompt = f"""As an expert interview coach helping someone prepare for a {st.session_state.job_position} position, 
-                provide a detailed and helpful response to this question: {question}"""
+                prompt = f"""As an expert interview coach helping someone prepare for a {st.session_state.job_position} position, provide a clear and concise response to: {question}"""
             
             # Show a spinner while processing
             with st.spinner("Generating response..."):
                 try:
-                    # Escape the prompt for shell safety
-                    escaped_prompt = prompt.replace('"', '\\"')
+                    # Direct terminal command
+                    command = f'ollama run mistral "{prompt}"'
                     
-                    # Run the command and capture output
-                    process = subprocess.run(
-                        f'ollama run mistral "{escaped_prompt}"',
+                    # Run command with longer timeout
+                    process = subprocess.Popen(
+                        command,
                         shell=True,
-                        text=True,
-                        capture_output=True,
-                        timeout=30
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
                     )
                     
-                    if process.returncode == 0:
-                        st.write("HireMind:", process.stdout)
-                    else:
-                        st.error(f"Error: {process.stderr}")
-                
-                except subprocess.TimeoutExpired:
-                    st.error("Request timed out after 30 seconds")
+                    # Wait for output with longer timeout (60 seconds)
+                    try:
+                        stdout, stderr = process.communicate(timeout=60)
+                        if process.returncode == 0:
+                            st.write("HireMind:", stdout)
+                        else:
+                            st.error(f"Error: {stderr}")
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        st.error("Response is taking too long. Please try again with a simpler question.")
+                        
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
 
@@ -86,7 +88,8 @@ elif st.session_state.interview_started:
 st.sidebar.markdown("---")
 st.sidebar.write("System Status:")
 try:
-    check = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+    # Quick check if Ollama is responsive
+    check = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=5)
     if check.returncode == 0:
         st.sidebar.success("✅ Ready to help")
     else:
@@ -103,4 +106,13 @@ if st.session_state.interview_started:
     - Ask about specific skills needed for the role
     - Request sample answers or feedback
     - Ask about interview best practices
+    """)
+
+    # Add example questions based on job position
+    st.sidebar.markdown("### Example Questions to Ask")
+    st.sidebar.markdown("""
+    1. What skills are most important for this role?
+    2. How should I prepare for technical questions?
+    3. What are common interview questions for this position?
+    4. How can I stand out in the interview?
     """)
