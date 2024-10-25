@@ -3,102 +3,104 @@ import subprocess
 import time
 
 # Page config
-st.set_page_config(page_title="Interview Prep AI", page_icon="💼", layout="wide")
-
-st.title("Interview Prep AI 💼")
-
-# Add interview type selector in sidebar
-st.sidebar.title("Settings")
-interview_type = st.sidebar.selectbox(
-    "Choose Interview Type",
-    [
-        "General Questions",
-        "Behavioral (STAR Method)",
-        "Technical Interview",
-        "Mock Interview"
-    ]
+st.set_page_config(
+    page_title="HireMind - AI Interview Prep",
+    page_icon="💼",
+    layout="wide"
 )
 
-# Display different instructions based on interview type
-if interview_type == "Behavioral (STAR Method)":
-    st.info("Format your answer using the STAR method:\n- Situation\n- Task\n- Action\n- Result")
-elif interview_type == "Technical Interview":
-    st.info("Be prepared to explain your thought process and approach.")
-elif interview_type == "Mock Interview":
-    st.info("I'll act as an interviewer. Answer as you would in a real interview.")
+# Initialize session state for job position
+if 'job_position' not in st.session_state:
+    st.session_state.job_position = None
+if 'interview_started' not in st.session_state:
+    st.session_state.interview_started = False
 
-# Add a text input
-question = st.text_input("Your question:")
+st.title("HireMind 💼")
 
-# Add a submit button
-if st.button("Ask"):
-    if question:
-        st.write("Your question:", question)
-        
-        # Prepare the context based on interview type
-        context = f"You are an expert interview coach. Interview type: {interview_type}. "
-        
-        if interview_type == "Behavioral (STAR Method)":
-            context += "Guide the user to structure their response using the STAR method. "
-        elif interview_type == "Technical Interview":
-            context += "Provide detailed technical guidance and evaluate the approach. "
-        elif interview_type == "Mock Interview":
-            context += "Act as a professional interviewer. Provide feedback after the response. "
-        
-        # Combine context and question
-        prompt = f'{context} Question: "{question}"'
-        
-        # Show a spinner while processing
-        with st.spinner("Generating response..."):
-            # Escape the prompt for shell safety
-            escaped_prompt = prompt.replace('"', '\\"')
+# Initial job position input if not already provided
+if not st.session_state.job_position:
+    st.markdown("### Hello! I'm HireMind, your interview prep assistant.")
+    st.markdown("Please enter the Job Position you're applying for and we'll begin our interview prep session.")
+    
+    job_position = st.text_input("Job Position:")
+    
+    if st.button("Start Interview Prep"):
+        if job_position:
+            st.session_state.job_position = job_position
+            st.session_state.interview_started = True
+            st.rerun()
+        else:
+            st.warning("Please enter a job position to continue.")
+
+# Interview prep session
+elif st.session_state.interview_started:
+    st.markdown(f"### Preparing you for: {st.session_state.job_position}")
+    
+    # User input for questions
+    question = st.text_input("Ask me anything about the interview process, or type 'generate questions' for sample questions:")
+    
+    if st.button("Submit"):
+        if question:
+            st.write("Your input:", question)
             
-            # Run the command and capture output
-            try:
-                process = subprocess.run(
-                    f'ollama run mistral "{escaped_prompt}"',
-                    shell=True,
-                    text=True,
-                    capture_output=True,
-                    timeout=30
-                )
+            # Prepare context based on whether user wants generated questions
+            if question.lower() == "generate questions":
+                prompt = f"""As an expert interview coach, generate 5 important interview questions specific to the {st.session_state.job_position} role. 
+                For each question, explain why it's important for this role. Format the response clearly with numbers and explanations."""
+            else:
+                prompt = f"""As an expert interview coach helping someone prepare for a {st.session_state.job_position} position, 
+                provide a detailed and helpful response to this question: {question}"""
+            
+            # Show a spinner while processing
+            with st.spinner("Generating response..."):
+                try:
+                    # Escape the prompt for shell safety
+                    escaped_prompt = prompt.replace('"', '\\"')
+                    
+                    # Run the command and capture output
+                    process = subprocess.run(
+                        f'ollama run mistral "{escaped_prompt}"',
+                        shell=True,
+                        text=True,
+                        capture_output=True,
+                        timeout=30
+                    )
+                    
+                    if process.returncode == 0:
+                        st.write("HireMind:", process.stdout)
+                    else:
+                        st.error(f"Error: {process.stderr}")
                 
-                if process.returncode == 0:
-                    st.write("Response:", process.stdout)
-                else:
-                    st.error(f"Error: {process.stderr}")
-            
-            except subprocess.TimeoutExpired:
-                st.error("Request timed out after 30 seconds")
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                except subprocess.TimeoutExpired:
+                    st.error("Request timed out after 30 seconds")
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
 
-# Add a status indicator
+    # Add a reset button in sidebar
+    if st.sidebar.button("Start New Interview Prep"):
+        st.session_state.job_position = None
+        st.session_state.interview_started = False
+        st.rerun()
+
+# System status in sidebar
 st.sidebar.markdown("---")
 st.sidebar.write("System Status:")
 try:
     check = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
     if check.returncode == 0:
-        st.sidebar.success("✅ Ollama is running")
+        st.sidebar.success("✅ Ready to help")
     else:
-        st.sidebar.error("❌ Ollama is not running properly")
+        st.sidebar.error("❌ System not responding")
 except Exception as e:
-    st.sidebar.error(f"❌ Error checking Ollama: {str(e)}")
+    st.sidebar.error(f"❌ Error: {str(e)}")
 
-# Add a suggestion box based on interview type
-st.sidebar.markdown("---")
-st.sidebar.write("Sample Questions:")
-if interview_type == "General Questions":
-    st.sidebar.write("- Tell me about yourself")
-    st.sidebar.write("- Why do you want this job?")
-    st.sidebar.write("- What are your strengths?")
-elif interview_type == "Behavioral (STAR Method)":
-    st.sidebar.write("- Tell me about a time you handled a conflict")
-    st.sidebar.write("- Describe a project you're proud of")
-    st.sidebar.write("- Share an example of leadership")
-elif interview_type == "Technical Interview":
-    st.sidebar.write("- Explain your approach to testing")
-    st.sidebar.write("- How would you design this system?")
-    st.sidebar.write("- What's your debugging process?")
-elif interview_type == "Mock Interview":
-    st.sidebar.write("- Start with: 'I'm ready for the interview'")
+# Tips in sidebar
+if st.session_state.interview_started:
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Quick Tips")
+    st.sidebar.markdown("""
+    - Type 'generate questions' to get role-specific questions
+    - Ask about specific skills needed for the role
+    - Request sample answers or feedback
+    - Ask about interview best practices
+    """)
