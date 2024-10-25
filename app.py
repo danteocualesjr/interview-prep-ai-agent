@@ -2,117 +2,166 @@ import streamlit as st
 import subprocess
 import time
 
-# Page config
-st.set_page_config(
-    page_title="HireMind - AI Interview Prep",
-    page_icon="💼",
-    layout="wide"
-)
+# Custom CSS to match the design as closely as possible
+st.markdown("""
+<style>
+    /* Main container styling */
+    .main {
+        background: linear-gradient(to bottom right, #fff7ed, #fef3c7);
+        padding: 1rem;
+    }
+    
+    /* Card styling */
+    .stApp {
+        background: linear-gradient(to bottom right, #fff7ed, #fef3c7);
+    }
+    
+    /* Header styling */
+    .stTitle {
+        font-size: 2rem !important;
+        font-weight: bold !important;
+        color: white !important;
+        padding: 1rem !important;
+        background: linear-gradient(to right, #fb923c, #f59e0b);
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Message container styling */
+    .user-message {
+        background: linear-gradient(to bottom right, #fb923c, #f59e0b);
+        color: white;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+        float: right;
+        clear: both;
+        max-width: 80%;
+    }
+    
+    .ai-message {
+        background: #f3f4f6;
+        color: #1f2937;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+        float: left;
+        clear: both;
+        max-width: 80%;
+    }
+    
+    /* Input styling */
+    .stTextInput input {
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        background: #f9fafb;
+    }
+    
+    .stTextInput input:focus {
+        border-color: #fb923c;
+        box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.2);
+    }
+    
+    /* Button styling */
+    .stButton button {
+        background: linear-gradient(to right, #fb923c, #f59e0b);
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+    }
+    
+    .stButton button:hover {
+        background: linear-gradient(to right, #ea580c, #d97706);
+    }
+    
+    /* Message container */
+    .message-container {
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Initialize session state for job position
+# Initialize session states
+if 'messages' not in st.session_state:
+    st.session_state.messages = [
+        {"role": "ai", "content": "Hello! I'm HireMind, your interview prep assistant. Please enter the Job Position you're applying for and we'll begin our interview prep session."}
+    ]
 if 'job_position' not in st.session_state:
     st.session_state.job_position = None
-if 'interview_started' not in st.session_state:
-    st.session_state.interview_started = False
 
-st.title("HireMind 💼")
+# App title
+st.markdown('<h1 class="stTitle">💼 HireMind</h1>', unsafe_allow_html=True)
 
-# Initial job position input if not already provided
-if not st.session_state.job_position:
-    st.markdown("### Hello! I'm HireMind, your interview prep assistant.")
-    st.markdown("Please enter the Job Position you're applying for and we'll begin our interview prep session.")
-    
-    job_position = st.text_input("Job Position:")
-    
-    if st.button("Start Interview Prep"):
-        if job_position:
-            st.session_state.job_position = job_position
-            st.session_state.interview_started = True
-            st.rerun()
+# Message container
+message_container = st.container()
+
+# Display messages
+with message_container:
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            st.markdown(f'<div class="user-message">{message["content"]}</div>', unsafe_allow_html=True)
         else:
-            st.warning("Please enter a job position to continue.")
+            st.markdown(f'<div class="ai-message">{message["content"]}</div>', unsafe_allow_html=True)
 
-# Interview prep session
-elif st.session_state.interview_started:
-    st.markdown(f"### Preparing you for: {st.session_state.job_position}")
+# Input form
+with st.container():
+    col1, col2 = st.columns([6,1])
+    with col1:
+        user_input = st.text_input("", placeholder="Type your message here...", label_visibility="collapsed")
+    with col2:
+        send_button = st.button("Send")
+
+if send_button and user_input:
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
     
-    # User input for questions
-    question = st.text_input("Ask me anything about the interview process, or type 'generate questions' for sample questions:")
-    
-    if st.button("Submit"):
-        if question:
-            st.write("Your input:", question)
-            
-            # Prepare context based on whether user wants generated questions
-            if question.lower() == "generate questions":
-                prompt = f"""As an expert interview coach, generate 5 important interview questions specific to the {st.session_state.job_position} role. Keep the response concise."""
-            else:
-                prompt = f"""As an expert interview coach helping someone prepare for a {st.session_state.job_position} position, provide a clear and concise response to: {question}"""
-            
-            # Show a spinner while processing
-            with st.spinner("Generating response..."):
-                try:
-                    # Direct terminal command
-                    command = f'ollama run mistral "{prompt}"'
-                    
-                    # Run command with longer timeout
-                    process = subprocess.Popen(
-                        command,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-                    
-                    # Wait for output with longer timeout (60 seconds)
-                    try:
-                        stdout, stderr = process.communicate(timeout=60)
-                        if process.returncode == 0:
-                            st.write("HireMind:", stdout)
-                        else:
-                            st.error(f"Error: {stderr}")
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        st.error("Response is taking too long. Please try again with a simpler question.")
-                        
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-
-    # Add a reset button in sidebar
-    if st.sidebar.button("Start New Interview Prep"):
-        st.session_state.job_position = None
-        st.session_state.interview_started = False
-        st.rerun()
-
-# System status in sidebar
-st.sidebar.markdown("---")
-st.sidebar.write("System Status:")
-try:
-    # Quick check if Ollama is responsive
-    check = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=5)
-    if check.returncode == 0:
-        st.sidebar.success("✅ Ready to help")
+    # Process based on job position
+    if not st.session_state.job_position:
+        st.session_state.job_position = user_input
+        ai_response = f"""Great! I see you're preparing for a {user_input} role. Let's start our interview prep session. 
+        What specific area would you like to focus on? You can choose from:
+        - Work Experience
+        - Technical Skills
+        - Behavioral Questions
+        - Company Knowledge
+        - Career Goals"""
     else:
-        st.sidebar.error("❌ System not responding")
-except Exception as e:
-    st.sidebar.error(f"❌ Error: {str(e)}")
+        # Here we'll add the Ollama integration
+        prompt = f"""As an interview coach helping someone prepare for a {st.session_state.job_position} position, 
+        provide a clear and helpful response to: {user_input}"""
+        
+        try:
+            with st.spinner("Thinking..."):
+                process = subprocess.Popen(
+                    f'ollama run mistral "{prompt}"',
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                stdout, stderr = process.communicate(timeout=60)
+                if process.returncode == 0:
+                    ai_response = stdout
+                else:
+                    ai_response = "I apologize, but I encountered an error. Please try again."
+                    
+        except Exception as e:
+            ai_response = "I apologize, but I encountered an error. Please try again."
+    
+    # Add AI response
+    st.session_state.messages.append({"role": "ai", "content": ai_response})
+    
+    # Rerun to update the UI
+    st.rerun()
 
-# Tips in sidebar
-if st.session_state.interview_started:
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Quick Tips")
-    st.sidebar.markdown("""
-    - Type 'generate questions' to get role-specific questions
-    - Ask about specific skills needed for the role
-    - Request sample answers or feedback
-    - Ask about interview best practices
-    """)
-
-    # Add example questions based on job position
-    st.sidebar.markdown("### Example Questions to Ask")
-    st.sidebar.markdown("""
-    1. What skills are most important for this role?
-    2. How should I prepare for technical questions?
-    3. What are common interview questions for this position?
-    4. How can I stand out in the interview?
-    """)
+# Clear button in sidebar
+if st.sidebar.button("Start New Session"):
+    st.session_state.messages = [
+        {"role": "ai", "content": "Hello! I'm HireMind, your interview prep assistant. Please enter the Job Position you're applying for and we'll begin our interview prep session."}
+    ]
+    st.session_state.job_position = None
+    st.rerun()
